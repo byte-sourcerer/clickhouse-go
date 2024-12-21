@@ -84,9 +84,17 @@ func (c *connect) prepareBatch(ctx context.Context, query string, opts driver.Pr
 }
 
 type batch struct {
-	blockBuilder blockBuilder
-	finalBlock   proto.FinalBlock
-	sender       sender
+	err          error
+	ctx          context.Context
+	query        string
+	conn         *connect
+	sent         bool // sent signalize that batch is send to ClickHouse.
+	released     bool // released signalize that conn was returned to pool and can't be used.
+	closeOnFlush bool // closeOnFlush signalize that batch should close query and release conn when use Flush
+	block        *proto.Block
+	connRelease  func(*connect, error)
+	connAcquire  func(context.Context) (*connect, error)
+	onProcess    *onProcess
 }
 
 func (b *batch) release(err error) {
@@ -314,21 +322,15 @@ func (b *batch) closeQuery() error {
 }
 
 type batchColumn struct {
-	err     error
-	batch   driver.Batch
-	column  column.Interface
-	release func(error)
+	err    error
+	column column.Interface
 }
 
 func (b *batchColumn) Append(v any) (err error) {
 	if b.err != nil {
 		return b.err
 	}
-	if b.batch.IsSent() {
-		return ErrBatchAlreadySent
-	}
 	if _, err = b.column.Append(v); err != nil {
-		b.release(err)
 		return err
 	}
 	return nil
@@ -338,11 +340,7 @@ func (b *batchColumn) AppendRow(v any) (err error) {
 	if b.err != nil {
 		return b.err
 	}
-	if b.batch.IsSent() {
-		return ErrBatchAlreadySent
-	}
 	if err = b.column.AppendRow(v); err != nil {
-		b.release(err)
 		return err
 	}
 	return nil
