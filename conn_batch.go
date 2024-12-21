@@ -84,17 +84,9 @@ func (c *connect) prepareBatch(ctx context.Context, query string, opts driver.Pr
 }
 
 type batch struct {
-	err          error
-	ctx          context.Context
-	query        string
-	conn         *connect
-	sent         bool // sent signalize that batch is send to ClickHouse.
-	released     bool // released signalize that conn was returned to pool and can't be used.
-	closeOnFlush bool // closeOnFlush signalize that batch should close query and release conn when use Flush
-	block        *proto.Block
-	connRelease  func(*connect, error)
-	connAcquire  func(context.Context) (*connect, error)
-	onProcess    *onProcess
+	blockBuilder blockBuilder
+	finalBlock   proto.FinalBlock
+	sender       sender
 }
 
 func (b *batch) release(err error) {
