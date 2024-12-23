@@ -2,14 +2,17 @@ package clickhouse
 
 import (
 	"context"
+	"io"
 	"os"
+	"syscall"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/proto"
+	"github.com/pkg/errors"
 )
 
 type sender struct {
-	err          error
+	// err          error 这里应该不需要保存 error
 	ctx          context.Context
 	conn         *connect
 	sent         bool // sent signalize that batch is send to ClickHouse.
@@ -18,6 +21,7 @@ type sender struct {
 	connRelease  func(*connect, error)
 	connAcquire  func(context.Context) (*connect, error)
 	onProcess    *onProcess
+	debugf       func(format string, v ...any)
 }
 
 func (s *sender) release(err error) {
@@ -52,27 +56,52 @@ func (s *sender) Send(block proto.FinalBlock) (err error) {
 		s.sent = true
 		s.release(err)
 	}()
-	if s.err != nil {
-		return s.err
-	}
+	// if s.err != nil {
+	// 	return s.err
+	// }
 	if s.sent || s.released {
 		if err = s.resetConnection(block); err != nil {
 			return err
 		}
 	}
 
-	if err = b.conn.sendData(block, ""); err != nil {
+	if err = s.sendData(block); err != nil {
 		// there might be an error caused by context cancellation
 		// in this case we should return context error instead of net.OpError
-		if ctxErr := b.ctx.Err(); ctxErr != nil {
-			return ctxErr
-		}
+		// todo: 似乎没有必要
+		// if ctxErr := b.ctx.Err(); ctxErr != nil {
+		// 	return ctxErr
+		// }
 
 		return err
 	}
-	if err = b.closeQuery(); err != nil {
+	if err = s.closeQuery(); err != nil {
 		return err
 	}
+	return nil
+}
+
+func (s *sender) sendData(blocks proto.FinalBlock) error {
+	// todo: assert block non empty
+
+	// todo: in go1.23, we can use iterators...
+	for i := 0; i < blocks.GetNumBlocks(); i++ {
+		buffer := blocks.GetBlock(i)
+		if err := FlushBuffer(s.conn.conn, buffer); err != nil {
+			switch {
+			case errors.Is(err, syscall.EPIPE):
+				s.debugf("[send data] pipe is broken, closing connection")
+				s.conn.setClosed()
+			case errors.Is(err, io.EOF):
+				s.debugf("[send data] unexpected EOF, closing connection")
+				s.conn.setClosed()
+			default:
+				s.debugf("[send data] unexpected error: %v", err)
+			}
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -99,6 +128,18 @@ func (s *sender) resetConnection(block proto.FinalBlock) (err error) {
 
 	if _, err = s.conn.firstBlock(s.ctx, s.onProcess); err != nil {
 		s.release(err)
+		return err
+	}
+
+	return nil
+}
+
+func (s *sender) closeQuery() error {
+	if err := s.conn.sendData(&proto.Block{}, ""); err != nil {
+		return err
+	}
+
+	if err := s.conn.process(s.ctx, s.onProcess); err != nil {
 		return err
 	}
 
