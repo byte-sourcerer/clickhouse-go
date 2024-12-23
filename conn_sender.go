@@ -25,7 +25,9 @@ func (s *sender) Abort() error {
 		return nil
 	}
 
-	return s.sender.Abort()
+	err := s.sender.Abort()
+	s.sender = nil
+	return err
 }
 
 func (s *sender) Send(ctx context.Context, block *bf.Buffer) error {
