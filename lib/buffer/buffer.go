@@ -5,10 +5,13 @@ import (
 
 	"github.com/ClickHouse/ch-go/compress"
 	chproto "github.com/ClickHouse/ch-go/proto"
+	"github.com/ClickHouse/clickhouse-go/v2/lib/proto"
 	"github.com/pkg/errors"
 )
 
-var bufferPool sync.Pool
+var pool sync.Pool
+
+
 
 // 必须保证 Final Block 中 row number > 0
 // todo: reuse buffer
@@ -48,7 +51,7 @@ func (b *Buffer) reset() {
 }
 
 func (b *Buffer) TryInit(
-	block Block,
+	block proto.Block,
 	name string,
 	revision uint64,
 	maxCompressionBuffer int,
@@ -57,7 +60,7 @@ func (b *Buffer) TryInit(
 ) error {
 	b.query = query
 
-	b.buffer.PutByte(ClientData)
+	b.buffer.PutByte(proto.ClientData)
 	b.buffer.PutString(name)
 
 	compressionOffset := len(b.buffer.Buf)

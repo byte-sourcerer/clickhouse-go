@@ -6,6 +6,7 @@ import (
 	"os"
 	"syscall"
 
+	bf "github.com/ClickHouse/clickhouse-go/v2/lib/buffer"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/proto"
 	"github.com/pkg/errors"
 )
@@ -24,7 +25,7 @@ func (s *OnceSender) Abort() {
 }
 
 // Send takes the ownership of s, and must not be called twice
-func (s *OnceSender) Send(ctx context.Context, block proto.Buffer) (err error) {
+func (s *OnceSender) Send(ctx context.Context, block bf.Buffer) (err error) {
 	stopCW := contextWatchdog(ctx, func() {
 		// close TCP connection on context cancel. There is no other way simple way to interrupt underlying operations.
 		// as verified in the test, this is safe to do and cleanups resources later on
@@ -47,7 +48,7 @@ func (s *OnceSender) Send(ctx context.Context, block proto.Buffer) (err error) {
 	return nil
 }
 
-func (s *OnceSender) sendData(blocks proto.Buffer) error {
+func (s *OnceSender) sendData(blocks bf.Buffer) error {
 	if blocks.GetNumBlocks() == 0 {
 		panic("bug: blocks is empty")
 	}
