@@ -2,7 +2,6 @@ package tests
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"os"
 	"testing"
@@ -26,12 +25,12 @@ func init() {
 
 const insertSql = "INSERT INTO example"
 
-func TestNewAPIBigIntNewAPI(t *testing.T) {
+func TestNewAPIBigInt(t *testing.T) {
 	require.NoError(t, ReadWriteBigIntNewAPI(t))
 }
 
-func TestNewAPISendTwiceShouldPanicNewAPI(t *testing.T) {
-	require.Error(t, ReadWriteBigIntShouldPanicNewAPI(t))
+func TestNewAPISendTwice(t *testing.T) {
+	require.NoError(t, sendTwice(t))
 }
 
 func ReadWriteBigIntNewAPI(t *testing.T) error {
@@ -73,7 +72,7 @@ func ReadWriteBigIntNewAPI(t *testing.T) error {
 	return nil
 }
 
-func ReadWriteBigIntShouldPanicNewAPI(t *testing.T) error {
+func sendTwice(t *testing.T) error {
 	ctx := context.Background()
 
 	conn, err := createTableForNewApiTest(ctx)
@@ -81,7 +80,7 @@ func ReadWriteBigIntShouldPanicNewAPI(t *testing.T) error {
 		return err
 	}
 
-	builder, sender, err := conn.PrepareBatchBuilderAndSender(ctx, "INSERT INTO example")
+	builder, sender, err := conn.PrepareBatchBuilderAndSender(ctx, insertSql)
 	if err != nil {
 		return err
 	}
@@ -98,14 +97,22 @@ func ReadWriteBigIntShouldPanicNewAPI(t *testing.T) error {
 		return err
 	}
 
+	// send first
 	if err := sender.Send(context.Background(), buffer); err != nil {
 		return err
 	}
 
-	// ERROR: send twice
+	// send twice
 	if err := sender.Send(context.Background(), buffer); err != nil {
 		return err
 	}
+
+	rows, err := conn.Query(ctx, "SELECT * FROM example")
+	if err != nil {
+		return err
+	}
+
+	assertRows(t, rows, 1)
 
 	return nil
 }
@@ -177,7 +184,7 @@ func assertRows(t *testing.T, rows driver.Rows, expectedCount int) {
 		err := rows.Scan(&col1, &col2, &col3, &col4, &col5, &col6, &col7)
 		require.NoError(t, err)
 
-		fmt.Printf("col1=%v, col2=%v, col3=%v, col4=%v, col5=%v, col6=%v, col7=%v\n", col1.String(), col2, col3, col4, col5, col6, col7)
+		t.Logf("col1=%v, col2=%v, col3=%v, col4=%v, col5=%v, col6=%v, col7=%v\n", col1.String(), col2, col3, col4, col5, col6, col7)
 
 		{
 			assert.Equal(t, expectedRow[0], &col1)

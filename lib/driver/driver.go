@@ -57,12 +57,15 @@ type (
 		Query(ctx context.Context, query string, args ...any) (Rows, error)
 		QueryRow(ctx context.Context, query string, args ...any) Row
 		PrepareBatch(ctx context.Context, query string, opts ...PrepareBatchOption) (Batch, error)
-		PrepareBatchBuilderAndSender(ctx context.Context, query string, opts ...PrepareBatchOption) (BatchBuilder, OnceSender, error)
 		Exec(ctx context.Context, query string, args ...any) error
 		AsyncInsert(ctx context.Context, query string, wait bool, args ...any) error
 		Ping(context.Context) error
 		Stats() Stats
 		Close() error
+
+		// new API to decouple building batch & sending batch
+		PrepareBatchBuilderAndSender(ctx context.Context, query string, opts ...PrepareBatchOption) (BatchBuilder, Sender, error)
+		AcquireSender(ctx context.Context) (Sender, error)
 	}
 	Row interface {
 		Err() error
@@ -104,7 +107,7 @@ type (
 		Append(v ...any) error
 		Build(destination *bf.Buffer) (*bf.Buffer, error)
 	}
-	OnceSender interface {
+	Sender interface {
 		Send(ctx context.Context, block *bf.Buffer) error
 		Abort() error
 	}

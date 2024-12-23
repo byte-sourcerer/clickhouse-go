@@ -168,7 +168,7 @@ func (ch *clickhouse) PrepareBatch(ctx context.Context, query string, opts ...dr
 	return batch, nil
 }
 
-func (ch *clickhouse) PrepareBatchBuilderAndSender(ctx context.Context, query string, opts ...driver.PrepareBatchOption) (driver.BatchBuilder, driver.OnceSender, error) {
+func (ch *clickhouse) PrepareBatchBuilderAndSender(ctx context.Context, query string, opts ...driver.PrepareBatchOption) (driver.BatchBuilder, driver.Sender, error) {
 	conn, err := ch.acquire(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -193,15 +193,33 @@ func (ch *clickhouse) PrepareBatchBuilderAndSender(ctx context.Context, query st
 	return builder, sender, nil
 }
 
-func (ch *clickhouse) buildSender(ctx context.Context, conn *connect) *OnceSender {
+func (ch *clickhouse) AcquireSender(ctx context.Context) (driver.Sender, error) {
+	conn, err := ch.acquire(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	sender := ch.buildSender(ctx, conn)
+
+	return sender, nil
+}
+
+func (ch *clickhouse) buildSender(ctx context.Context, conn *connect) driver.Sender {
 	options := queryOptions(ctx)
 
-	return &OnceSender{
+	onceSender := &onceSender{
 		conn:        conn,
 		connRelease: ch.release,
 		onProcess:   options.onProcess(),
 		debugf:      ch.opt.Debugf,
 	}
+
+	sender := &sender{
+		sender: onceSender,
+		conn:   ch,
+	}
+
+	return sender
 }
 
 func getPrepareBatchOptions(opts ...driver.PrepareBatchOption) driver.PrepareBatchOptions {

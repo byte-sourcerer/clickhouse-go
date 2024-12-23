@@ -2,7 +2,6 @@ package clickhouse
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"syscall"
@@ -13,34 +12,54 @@ import (
 	"github.com/pkg/errors"
 )
 
-// OnceSender 只能调用一次
-type OnceSender struct {
+type sender struct {
+	sender driver.Sender
+	conn   driver.Conn
+}
+
+var _ (driver.Sender) = (*sender)(nil)
+
+func (s *sender) Abort() error {
+	if s.sender == nil {
+		return nil
+	}
+
+	return s.sender.Abort()
+}
+
+func (s *sender) Send(ctx context.Context, block *bf.Buffer) error {
+	if s.sender == nil {
+		newSender, err := s.conn.AcquireSender(ctx)
+		if err != nil {
+			return err
+		}
+		s.sender = newSender
+	}
+
+	err := s.sender.Send(ctx, block)
+	s.sender = nil
+	return err
+}
+
+// onceSender 是一次性的 Sender
+type onceSender struct {
 	conn        *connect
 	connRelease func(*connect, error)
-	used        bool
 
 	onProcess *onProcess
 	debugf    func(format string, v ...any)
 }
 
-var _ (driver.OnceSender) = (*OnceSender)(nil)
+var _ (driver.Sender) = (*onceSender)(nil)
 
 // Abort takes the ownership of s, and must not be called twice
-func (s *OnceSender) Abort() error {
-	if s.used {
-		return fmt.Errorf("Abort must be called only once")
-	}
-	s.used = true
+func (s *onceSender) Abort() error {
 	s.release(os.ErrProcessDone)
 	return nil
 }
 
 // Send takes the ownership of s, and must not be called twice
-func (s *OnceSender) Send(ctx context.Context, block *bf.Buffer) (err error) {
-	if s.used {
-		return fmt.Errorf("Send must be called only once")
-	}
-
+func (s *onceSender) Send(ctx context.Context, block *bf.Buffer) (err error) {
 	stopCW := contextWatchdog(ctx, func() {
 		// close TCP connection on context cancel. There is no other way simple way to interrupt underlying operations.
 		// as verified in the test, this is safe to do and cleanups resources later on
@@ -50,7 +69,6 @@ func (s *OnceSender) Send(ctx context.Context, block *bf.Buffer) (err error) {
 	})
 
 	defer func() {
-		s.used = true
 		stopCW()
 		s.release(err)
 	}()
@@ -64,7 +82,7 @@ func (s *OnceSender) Send(ctx context.Context, block *bf.Buffer) (err error) {
 	return nil
 }
 
-func (s *OnceSender) sendData(blocks *bf.Buffer) error {
+func (s *onceSender) sendData(blocks *bf.Buffer) error {
 	if blocks.GetNumBlocks() == 0 {
 		panic("bug: blocks is empty")
 	}
@@ -90,7 +108,7 @@ func (s *OnceSender) sendData(blocks *bf.Buffer) error {
 	return nil
 }
 
-func (s *OnceSender) closeQuery(ctx context.Context) error {
+func (s *onceSender) closeQuery(ctx context.Context) error {
 	if err := s.conn.sendData(&proto.Block{}, ""); err != nil {
 		return err
 	}
@@ -102,7 +120,7 @@ func (s *OnceSender) closeQuery(ctx context.Context) error {
 	return nil
 }
 
-func (s *OnceSender) release(err error) {
+func (s *onceSender) release(err error) {
 	s.connRelease(s.conn, err)
 	s.connRelease = nil
 }
