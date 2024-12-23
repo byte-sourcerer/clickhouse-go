@@ -22,6 +22,7 @@ import (
 	"reflect"
 	"time"
 
+	bf "github.com/ClickHouse/clickhouse-go/v2/lib/buffer"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/column"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/proto"
 )
@@ -56,6 +57,7 @@ type (
 		Query(ctx context.Context, query string, args ...any) (Rows, error)
 		QueryRow(ctx context.Context, query string, args ...any) Row
 		PrepareBatch(ctx context.Context, query string, opts ...PrepareBatchOption) (Batch, error)
+		PrepareBatchBuilderAndSender(ctx context.Context, query string, opts ...PrepareBatchOption) (BatchBuilder, OnceSender, error)
 		Exec(ctx context.Context, query string, args ...any) error
 		AsyncInsert(ctx context.Context, query string, wait bool, args ...any) error
 		Ping(context.Context) error
@@ -97,5 +99,13 @@ type (
 		Nullable() bool
 		ScanType() reflect.Type
 		DatabaseTypeName() string
+	}
+	BatchBuilder interface {
+		Append(v ...any) error
+		Build(destination *bf.Buffer) (*bf.Buffer, error)
+	}
+	OnceSender interface {
+		Send(ctx context.Context, block *bf.Buffer) error
+		Abort()
 	}
 )

@@ -7,10 +7,12 @@ import (
 	"syscall"
 
 	bf "github.com/ClickHouse/clickhouse-go/v2/lib/buffer"
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/proto"
 	"github.com/pkg/errors"
 )
 
+// OnceSender 只能调用一次
 type OnceSender struct {
 	conn        *connect
 	connRelease func(*connect, error)
@@ -19,13 +21,15 @@ type OnceSender struct {
 	debugf    func(format string, v ...any)
 }
 
+var _ (driver.OnceSender) = (*OnceSender)(nil)
+
 // Abort takes the ownership of s, and must not be called twice
 func (s *OnceSender) Abort() {
 	s.release(os.ErrProcessDone)
 }
 
 // Send takes the ownership of s, and must not be called twice
-func (s *OnceSender) Send(ctx context.Context, block bf.Buffer) (err error) {
+func (s *OnceSender) Send(ctx context.Context, block *bf.Buffer) (err error) {
 	stopCW := contextWatchdog(ctx, func() {
 		// close TCP connection on context cancel. There is no other way simple way to interrupt underlying operations.
 		// as verified in the test, this is safe to do and cleanups resources later on
@@ -48,7 +52,7 @@ func (s *OnceSender) Send(ctx context.Context, block bf.Buffer) (err error) {
 	return nil
 }
 
-func (s *OnceSender) sendData(blocks bf.Buffer) error {
+func (s *OnceSender) sendData(blocks *bf.Buffer) error {
 	if blocks.GetNumBlocks() == 0 {
 		panic("bug: blocks is empty")
 	}

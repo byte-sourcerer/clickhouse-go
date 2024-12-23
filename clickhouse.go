@@ -168,7 +168,7 @@ func (ch *clickhouse) PrepareBatch(ctx context.Context, query string, opts ...dr
 	return batch, nil
 }
 
-func (ch *clickhouse) PrepareBatchBuilderAndSender(ctx context.Context, query string, opts ...driver.PrepareBatchOption) (*BatchBuilder, *OnceSender, error) {
+func (ch *clickhouse) PrepareBatchBuilderAndSender(ctx context.Context, query string, opts ...driver.PrepareBatchOption) (driver.BatchBuilder, driver.OnceSender, error) {
 	conn, err := ch.acquire(ctx)
 	if err != nil {
 		return nil, nil, err

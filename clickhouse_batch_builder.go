@@ -3,11 +3,11 @@ package clickhouse
 import (
 	"github.com/ClickHouse/ch-go/compress"
 	bf "github.com/ClickHouse/clickhouse-go/v2/lib/buffer"
+	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/proto"
 	"github.com/pkg/errors"
 )
 
-// todo: reuse buffer
 type BatchBuilder struct {
 	block                *proto.Block
 	query                string
@@ -16,6 +16,8 @@ type BatchBuilder struct {
 	compression          compress.Method
 	debugf               func(format string, v ...any)
 }
+
+var _ driver.BatchBuilder = (*BatchBuilder)(nil)
 
 func (b *BatchBuilder) Append(v ...any) error {
 	err := b.block.Append(v...)

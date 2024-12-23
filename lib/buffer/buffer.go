@@ -1,6 +1,7 @@
 package proto
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/ClickHouse/ch-go/compress"
@@ -9,12 +10,24 @@ import (
 	"github.com/pkg/errors"
 )
 
-var pool sync.Pool
+var pool = sync.Pool{
+	New: func() any {
+		buffer := &Buffer{}
+		buffer.reset()
+		return buffer
+	},
+}
 
+func GetBuffer() *Buffer {
+	return pool.Get().(*Buffer)
+}
 
+func PutBuffer(buffer *Buffer) {
+	buffer.reset()
+	pool.Put(buffer)
+}
 
-// 必须保证 Final Block 中 row number > 0
-// todo: reuse buffer
+// invariance: buffer is non-empty
 type Buffer struct {
 	buffer       *chproto.Buffer
 	startIndices []int
@@ -58,6 +71,10 @@ func (b *Buffer) TryInit(
 	compression compress.Method,
 	query string,
 ) error {
+	if block.Rows() == 0 {
+		return fmt.Errorf("cannot build buffer for empty block")
+	}
+
 	b.query = query
 
 	b.buffer.PutByte(proto.ClientData)
