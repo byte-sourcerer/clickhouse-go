@@ -106,6 +106,6 @@ type (
 	}
 	OnceSender interface {
 		Send(ctx context.Context, block *bf.Buffer) error
-		Abort()
+		Abort() error
 	}
 )
