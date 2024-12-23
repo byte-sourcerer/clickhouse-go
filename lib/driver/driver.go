@@ -102,6 +102,8 @@ type (
 		ScanType() reflect.Type
 		DatabaseTypeName() string
 	}
+
+	// new API to decouple building batch & sending batch
 	BatchBuilder interface {
 		Append(v ...any) error
 		Build(destination *bf.Buffer) (*bf.Buffer, error)
