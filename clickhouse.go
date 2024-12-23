@@ -188,23 +188,12 @@ func (ch *clickhouse) PrepareBatchBuilderAndSender(ctx context.Context, query st
 		debugf:               ch.opt.Debugf,
 	}
 
-	sender := ch.buildSender(ctx, conn)
+	sender := ch.buildSender(ctx, conn, query)
 
 	return builder, sender, nil
 }
 
-func (ch *clickhouse) AcquireSender(ctx context.Context) (driver.Sender, error) {
-	conn, err := ch.acquire(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	sender := ch.buildSender(ctx, conn)
-
-	return sender, nil
-}
-
-func (ch *clickhouse) buildSender(ctx context.Context, conn *connect) driver.Sender {
+func (ch *clickhouse) buildSender(ctx context.Context, conn *connect, query string) driver.Sender {
 	options := queryOptions(ctx)
 
 	onceSender := &onceSender{
@@ -217,6 +206,7 @@ func (ch *clickhouse) buildSender(ctx context.Context, conn *connect) driver.Sen
 	sender := &sender{
 		sender: onceSender,
 		conn:   ch,
+		query:  query,
 	}
 
 	return sender

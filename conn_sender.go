@@ -16,6 +16,7 @@ import (
 type sender struct {
 	sender driver.Sender
 	conn   driver.Conn
+	query  string
 }
 
 var _ (driver.Sender) = (*sender)(nil)
@@ -32,11 +33,11 @@ func (s *sender) Abort() error {
 
 func (s *sender) Send(ctx context.Context, block *bf.Buffer) error {
 	if s.sender == nil {
-		newSender, err := s.conn.AcquireSender(ctx)
+		_, sender, err := s.conn.PrepareBatchBuilderAndSender(ctx, s.query)
 		if err != nil {
 			return err
 		}
-		s.sender = newSender
+		s.sender = sender
 	}
 
 	err := s.sender.Send(ctx, block)

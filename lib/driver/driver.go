@@ -65,7 +65,6 @@ type (
 
 		// new API to decouple building batch & sending batch
 		PrepareBatchBuilderAndSender(ctx context.Context, query string, opts ...PrepareBatchOption) (BatchBuilder, Sender, error)
-		AcquireSender(ctx context.Context) (Sender, error)
 	}
 	Row interface {
 		Err() error
