@@ -322,15 +322,21 @@ func (b *batch) closeQuery() error {
 }
 
 type batchColumn struct {
-	err    error
-	column column.Interface
+	err     error
+	batch   driver.Batch
+	column  column.Interface
+	release func(error)
 }
 
 func (b *batchColumn) Append(v any) (err error) {
 	if b.err != nil {
 		return b.err
 	}
+	if b.batch.IsSent() {
+		return ErrBatchAlreadySent
+	}
 	if _, err = b.column.Append(v); err != nil {
+		b.release(err)
 		return err
 	}
 	return nil
@@ -340,7 +346,11 @@ func (b *batchColumn) AppendRow(v any) (err error) {
 	if b.err != nil {
 		return b.err
 	}
+	if b.batch.IsSent() {
+		return ErrBatchAlreadySent
+	}
 	if err = b.column.AppendRow(v); err != nil {
+		b.release(err)
 		return err
 	}
 	return nil
