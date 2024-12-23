@@ -10,7 +10,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-type sender struct {
+type OnceSender struct {
 	conn        *connect
 	connRelease func(*connect, error)
 
@@ -19,12 +19,12 @@ type sender struct {
 }
 
 // Abort takes the ownership of s, and must not be called twice
-func (s *sender) Abort() {
+func (s *OnceSender) Abort() {
 	s.release(os.ErrProcessDone)
 }
 
 // Send takes the ownership of s, and must not be called twice
-func (s *sender) Send(ctx context.Context, block proto.FinalBlock) (err error) {
+func (s *OnceSender) Send(ctx context.Context, block proto.Buffer) (err error) {
 	stopCW := contextWatchdog(ctx, func() {
 		// close TCP connection on context cancel. There is no other way simple way to interrupt underlying operations.
 		// as verified in the test, this is safe to do and cleanups resources later on
@@ -47,7 +47,7 @@ func (s *sender) Send(ctx context.Context, block proto.FinalBlock) (err error) {
 	return nil
 }
 
-func (s *sender) sendData(blocks proto.FinalBlock) error {
+func (s *OnceSender) sendData(blocks proto.Buffer) error {
 	if blocks.GetNumBlocks() == 0 {
 		panic("bug: blocks is empty")
 	}
@@ -73,7 +73,7 @@ func (s *sender) sendData(blocks proto.FinalBlock) error {
 	return nil
 }
 
-func (s *sender) closeQuery(ctx context.Context) error {
+func (s *OnceSender) closeQuery(ctx context.Context) error {
 	if err := s.conn.sendData(&proto.Block{}, ""); err != nil {
 		return err
 	}
@@ -85,7 +85,7 @@ func (s *sender) closeQuery(ctx context.Context) error {
 	return nil
 }
 
-func (s *sender) release(err error) {
+func (s *OnceSender) release(err error) {
 	s.connRelease(s.conn, err)
 	s.connRelease = nil
 }

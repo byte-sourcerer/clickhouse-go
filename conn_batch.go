@@ -37,30 +37,8 @@ var insertMatch = regexp.MustCompile(`(?i)(INSERT\s+INTO\s+[^( ]+(?:\s*\([^()]*(
 var columnMatch = regexp.MustCompile(`INSERT INTO .+\s\((?P<Columns>.+)\)$`)
 
 func (c *connect) prepareBatch(ctx context.Context, query string, opts driver.PrepareBatchOptions, release func(*connect, error), acquire func(context.Context) (*connect, error)) (driver.Batch, error) {
-	query, _, queryColumns, verr := extractNormalizedInsertQueryAndColumns(query)
-	if verr != nil {
-		return nil, verr
-	}
-
-	options := queryOptions(ctx)
-	if deadline, ok := ctx.Deadline(); ok {
-		c.conn.SetDeadline(deadline)
-		defer c.conn.SetDeadline(time.Time{})
-	}
-	if err := c.sendQuery(query, &options); err != nil {
-		release(c, err)
-		return nil, err
-	}
-	var (
-		onProcess  = options.onProcess()
-		block, err = c.firstBlock(ctx, onProcess)
-	)
+	block, onProcess, query, err := c.buildBlock(ctx, query, release)
 	if err != nil {
-		release(c, err)
-		return nil, err
-	}
-	// resort batch to specified columns
-	if err = block.SortColumns(queryColumns); err != nil {
 		return nil, err
 	}
 
@@ -81,6 +59,41 @@ func (c *connect) prepareBatch(ctx context.Context, query string, opts driver.Pr
 	}
 
 	return b, nil
+}
+
+func (c *connect) buildBlock(
+	ctx context.Context,
+	query string,
+	release func(*connect, error),
+) (*proto.Block, *onProcess, string, error) {
+	query, _, queryColumns, verr := extractNormalizedInsertQueryAndColumns(query)
+	if verr != nil {
+		return nil, nil, "", verr
+	}
+
+	options := queryOptions(ctx)
+	if deadline, ok := ctx.Deadline(); ok {
+		c.conn.SetDeadline(deadline)
+		defer c.conn.SetDeadline(time.Time{})
+	}
+	if err := c.sendQuery(query, &options); err != nil {
+		release(c, err)
+		return nil, nil, "", err
+	}
+	var (
+		onProcess  = options.onProcess()
+		block, err = c.firstBlock(ctx, onProcess)
+	)
+	if err != nil {
+		release(c, err)
+		return nil, nil, "", err
+	}
+	// resort batch to specified columns
+	if err = block.SortColumns(queryColumns); err != nil {
+		return nil, nil, "", err
+	}
+
+	return block, onProcess, query, err
 }
 
 type batch struct {
