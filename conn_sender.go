@@ -2,6 +2,7 @@ package clickhouse
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"syscall"
@@ -46,6 +47,8 @@ type onceSender struct {
 	conn        *connect
 	connRelease func(*connect, error)
 
+	released bool // released signalize that conn was returned to pool and can't be used.
+
 	onProcess *onProcess
 	debugf    func(format string, v ...any)
 }
@@ -60,6 +63,10 @@ func (s *onceSender) Abort() error {
 
 // Send takes the ownership of s, and must not be called twice
 func (s *onceSender) Send(ctx context.Context, block *bf.Buffer) (err error) {
+	if s.released {
+		return fmt.Errorf("block has been abort or sent")
+	}
+
 	stopCW := contextWatchdog(ctx, func() {
 		// close TCP connection on context cancel. There is no other way simple way to interrupt underlying operations.
 		// as verified in the test, this is safe to do and cleanups resources later on
@@ -121,6 +128,8 @@ func (s *onceSender) closeQuery(ctx context.Context) error {
 }
 
 func (s *onceSender) release(err error) {
-	s.connRelease(s.conn, err)
-	s.connRelease = nil
+	if !s.released {
+		s.released = true
+		s.connRelease(s.conn, err)
+	}
 }
