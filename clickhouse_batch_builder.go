@@ -20,8 +20,11 @@ type BatchBuilder struct {
 var _ driver.BatchBuilder = (*BatchBuilder)(nil)
 
 func (b *BatchBuilder) Append(v ...any) error {
-	err := b.block.Append(v...)
-	return errors.Wrap(ErrBatchInvalid, err.Error())
+	if err := b.block.Append(v...); err != nil {
+		return errors.Wrap(ErrBatchInvalid, err.Error())
+	} else {
+		return nil
+	}
 }
 
 func (b *BatchBuilder) Build(destination *bf.Buffer) (*bf.Buffer, error) {
