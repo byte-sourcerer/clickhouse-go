@@ -86,12 +86,10 @@ func (b *Buffer) TryInit(
 		return err
 	}
 
-	split := true
-
+	begin := 0
 	for i := range block.Columns {
-		if split {
-			b.startIndices = append(b.startIndices, 0)
-			split = false
+		if len(b.startIndices) == 0 || b.startIndices[len(b.startIndices)-1] != begin {
+			b.startIndices = append(b.startIndices, begin)
 		}
 
 		if err := block.EncodeColumn(b.buffer, revision, i); err != nil {
@@ -102,9 +100,7 @@ func (b *Buffer) TryInit(
 				return err
 			}
 
-			b.startIndices = append(b.startIndices, len(b.buffer.Buf))
-
-			split = true
+			begin = len(b.buffer.Buf)
 			compressionOffset = len(b.buffer.Buf)
 		}
 	}

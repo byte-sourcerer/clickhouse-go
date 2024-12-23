@@ -33,6 +33,11 @@ func TestNewAPISendTwice(t *testing.T) {
 	require.NoError(t, sendTwice(t))
 }
 
+func TestNewAPIManyRows(t *testing.T) {
+	require.NoError(t, sendMany(t, 100000, false))
+	require.NoError(t, sendMany(t, 100000, true))
+}
+
 func ReadWriteBigIntNewAPI(t *testing.T) error {
 	ctx := context.Background()
 
@@ -117,6 +122,58 @@ func sendTwice(t *testing.T) error {
 	return nil
 }
 
+func sendMany(t *testing.T, numRows int, resend bool) error {
+	ctx := context.Background()
+
+	conn, err := createTableForNewApiTest(ctx)
+	if err != nil {
+		return err
+	}
+
+	builder, sender, err := conn.PrepareBatchBuilderAndSender(ctx, insertSql)
+	if err != nil {
+		return err
+	}
+
+	for i := 0; i < numRows; i++ {
+		if err := builder.Append(buildRow()...); err != nil {
+			return err
+		}
+	}
+
+	buffer := bf.GetBuffer()
+	defer bf.PutBuffer(buffer)
+
+	buffer, err = builder.Build(buffer)
+	if err != nil {
+		return err
+	}
+
+	if err := sender.Send(context.Background(), buffer); err != nil {
+		return err
+	}
+
+	if resend {
+		if err := sender.Send(context.Background(), buffer); err != nil {
+			return err
+		}
+	}
+
+	rows, err := conn.Query(ctx, "SELECT * FROM example")
+	if err != nil {
+		return err
+	}
+
+	expectedNumRows := numRows
+	if resend {
+		expectedNumRows = 2 * numRows
+	}
+
+	assertRows(t, rows, expectedNumRows)
+
+	return nil
+}
+
 func createTableForNewApiTest(ctx context.Context) (driver.Conn, error) {
 	conn, err := GetNativeConnection(nil, nil, nil)
 	if err != nil {
@@ -184,7 +241,7 @@ func assertRows(t *testing.T, rows driver.Rows, expectedCount int) {
 		err := rows.Scan(&col1, &col2, &col3, &col4, &col5, &col6, &col7)
 		require.NoError(t, err)
 
-		t.Logf("col1=%v, col2=%v, col3=%v, col4=%v, col5=%v, col6=%v, col7=%v\n", col1.String(), col2, col3, col4, col5, col6, col7)
+		// t.Logf("col1=%v, col2=%v, col3=%v, col4=%v, col5=%v, col6=%v, col7=%v\n", col1.String(), col2, col3, col4, col5, col6, col7)
 
 		{
 			assert.Equal(t, expectedRow[0], &col1)
