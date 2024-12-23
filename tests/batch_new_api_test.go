@@ -112,7 +112,7 @@ func sendTwice(t *testing.T) error {
 		return err
 	}
 
-	assertRows(t, rows, 1)
+	assertRows(t, rows, 2)
 
 	return nil
 }
