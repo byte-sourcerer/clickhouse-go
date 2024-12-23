@@ -37,7 +37,7 @@ func TestNewAPISendTwiceShouldPanicNewAPI(t *testing.T) {
 func ReadWriteBigIntNewAPI(t *testing.T) error {
 	ctx := context.Background()
 
-	conn, err := createTableForNewApiTest(t, ctx)
+	conn, err := createTableForNewApiTest(ctx)
 	if err != nil {
 		return err
 	}
@@ -76,7 +76,7 @@ func ReadWriteBigIntNewAPI(t *testing.T) error {
 func ReadWriteBigIntShouldPanicNewAPI(t *testing.T) error {
 	ctx := context.Background()
 
-	conn, err := createTableForNewApiTest(t, ctx)
+	conn, err := createTableForNewApiTest(ctx)
 	if err != nil {
 		return err
 	}
@@ -110,7 +110,7 @@ func ReadWriteBigIntShouldPanicNewAPI(t *testing.T) error {
 	return nil
 }
 
-func createTableForNewApiTest(t *testing.T, ctx context.Context) (driver.Conn, error) {
+func createTableForNewApiTest(ctx context.Context) (driver.Conn, error) {
 	conn, err := GetNativeConnection(nil, nil, nil)
 	if err != nil {
 		return nil, err
