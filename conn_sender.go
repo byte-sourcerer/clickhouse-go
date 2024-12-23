@@ -42,8 +42,8 @@ func (s *sender) Abort() error {
 	return nil
 }
 
-func (s *sender) Send(block proto.FinalBlock) (err error) {
-	stopCW := contextWatchdog(s.ctx, func() {
+func (s *sender) Send(ctx context.Context, block proto.FinalBlock) (err error) {
+	stopCW := contextWatchdog(ctx, func() {
 		// close TCP connection on context cancel. There is no other way simple way to interrupt underlying operations.
 		// as verified in the test, this is safe to do and cleanups resources later on
 		if s.conn != nil {
