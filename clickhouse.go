@@ -200,7 +200,7 @@ func (ch *clickhouse) buildSender(ctx context.Context, conn *connect, query stri
 		conn:        conn,
 		connRelease: ch.release,
 		onProcess:   options.onProcess(),
-		debugf:      ch.opt.Debugf,
+		debugf:      conn.debugf,
 	}
 
 	sender := &sender{
