@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 
 	bf "github.com/ClickHouse/clickhouse-go/v2/lib/buffer"
@@ -27,6 +28,10 @@ const insertSql = "INSERT INTO example"
 
 func TestNewAPIBigInt(t *testing.T) {
 	require.NoError(t, ReadWriteBigIntNewAPI(t))
+}
+
+func TestNewAPIPrepareTwice(t *testing.T) {
+	require.NoError(t, prepareTwice(t))
 }
 
 func TestNewAPISendTwice(t *testing.T) {
@@ -122,6 +127,67 @@ func sendTwice(t *testing.T) error {
 	return nil
 }
 
+func supressUnused(x any) {}
+
+func prepareTwice(t *testing.T) error {
+	ctx := context.Background()
+
+	conn, err := createTableForNewApiTest(ctx)
+	if err != nil {
+		return err
+	}
+
+	prepareAndSend := func() error {
+		t.Logf("PrepareBatchBuilderAndSender")
+		builder, sender, err := conn.PrepareBatchBuilderAndSender(ctx, insertSql)
+		if err != nil {
+			return err
+		}
+
+		t.Logf("Append")
+		if err := builder.Append(buildRow()...); err != nil {
+			return err
+		}
+
+		buffer := bf.GetBuffer()
+		defer bf.PutBuffer(buffer)
+
+		if buffer == nil {
+			panic("buffer is nil")
+		}
+
+		t.Logf("Build buffer")
+		buffer, err = builder.Build(buffer)
+		if err != nil {
+			return err
+		}
+
+		t.Logf("Send")
+		if err := sender.Send(context.Background(), buffer); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	if err := prepareAndSend(); err != nil {
+		return err
+	}
+
+	if err := prepareAndSend(); err != nil {
+		return err
+	}
+
+	rows, err := conn.Query(ctx, "SELECT * FROM example")
+	if err != nil {
+		return err
+	}
+
+	assertRows(t, rows, 2)
+
+	return nil
+}
+
 func sendMany(t *testing.T, numRows int, resend bool) error {
 	ctx := context.Background()
 
@@ -175,7 +241,9 @@ func sendMany(t *testing.T, numRows int, resend bool) error {
 }
 
 func createTableForNewApiTest(ctx context.Context) (driver.Conn, error) {
-	conn, err := GetNativeConnection(nil, nil, nil)
+	conn, err := GetNativeConnection(nil, nil, &clickhouse.Compression{
+		Method: clickhouse.CompressionLZ4,
+	})
 	if err != nil {
 		return nil, err
 	}

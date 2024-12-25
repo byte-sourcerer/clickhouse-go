@@ -422,6 +422,7 @@ func getConnection(env ClickHouseTestEnvironment, database string, settings clic
 	conn, err := clickhouse.Open(&clickhouse.Options{
 		Addr:     []string{fmt.Sprintf("%s:%d", env.Host, port)},
 		Settings: settings,
+		Debug:    true,
 		Auth: clickhouse.Auth{
 			Database: database,
 			Username: env.Username,

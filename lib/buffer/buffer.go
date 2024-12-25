@@ -35,6 +35,10 @@ type Buffer struct {
 	compressor   *compress.Writer
 }
 
+func (b *Buffer) GetBuffer() []byte {
+	return b.buffer.Buf
+}
+
 func (b *Buffer) reset() {
 	// reset buffer
 	{
@@ -95,7 +99,7 @@ func (b *Buffer) TryInit(
 		if err := block.EncodeColumn(b.buffer, revision, i); err != nil {
 			return err
 		}
-		if len(b.buffer.Buf) >= maxCompressionBuffer {
+		if len(b.buffer.Buf)-compressionOffset >= maxCompressionBuffer {
 			if err := b.compressBuffer(compressionOffset, compression); err != nil {
 				return err
 			}
@@ -105,11 +109,15 @@ func (b *Buffer) TryInit(
 		}
 	}
 
+	if err := b.compressBuffer(compressionOffset, compression); err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func (b *Buffer) compressBuffer(start int, compression compress.Method) error {
-	if compression != compress.None {
+	if compression != compress.None && len(b.buffer.Buf) > 0 {
 		compressed, err := doCompress(b.compressor, compression, b.buffer.Buf[start:])
 		if err != nil {
 			return err

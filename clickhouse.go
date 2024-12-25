@@ -185,7 +185,7 @@ func (ch *clickhouse) PrepareBatchBuilderAndSender(ctx context.Context, query st
 		revision:             conn.revision,
 		maxCompressionBuffer: conn.maxCompressionBuffer,
 		compression:          compress.Method(conn.compression),
-		debugf:               ch.opt.Debugf,
+		debugf:               conn.debugf,
 	}
 
 	sender := ch.buildSender(ctx, conn, query)
