@@ -12,6 +12,76 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestMultiBufferSend(t *testing.T) {
+	conn, err := GetNativeConnectionWithMaxCompressionBuffer(
+		clickhouse.Settings{
+			"max_execution_time": 60,
+		},
+		nil,
+		&clickhouse.Compression{
+			Method: clickhouse.CompressionLZ4,
+		},
+		100,
+	)
+	require.NoError(t, err)
+
+	conn.Exec(context.Background(), "DROP TABLE IF EXISTS example")
+	require.NoError(t, conn.Exec(
+		context.Background(),
+		`
+			CREATE TABLE example (
+				i64 Int64,
+				s String,
+				low_s LowCardinality(String),
+				msg String CODEC(ZSTD(1)),
+				msgOver String CODEC(ZSTD(5))
+			)
+			ENGINE = Memory
+			`,
+	))
+
+	buildRow := func() []any {
+		return []any{
+			3,
+			"hello world",
+			"hello world",
+			"hello world",
+			"hello world",
+		}
+	}
+
+	{
+		batch, err := conn.PrepareBatch(context.Background(), "INSERT INTO example")
+		require.NoError(t, err)
+
+		for i := 0; i < 10; i++ {
+			err := batch.Append(buildRow()...)
+			require.NoError(t, err)
+		}
+
+		require.NoError(t, batch.Send())
+	}
+
+	{
+		batchBuilder, sender, err := conn.PrepareBatchBuilderAndSender(context.Background(), "INSERT INTO example")
+		require.NoError(t, err)
+
+		for i := 0; i < 10; i++ {
+			err := batchBuilder.Append(buildRow()...)
+			require.NoError(t, err)
+		}
+
+		buffer := bf.GetBuffer()
+		defer bf.PutBuffer(buffer)
+
+		buffer, err = batchBuilder.Build(buffer)
+		require.NoError(t, err)
+
+		err = sender.Send(context.Background(), buffer)
+		require.NoError(t, err)
+	}
+}
+
 func TestSplitSend(t *testing.T) {
 	conn, err := GetNativeConnectionWithMaxCompressionBuffer(
 		clickhouse.Settings{
@@ -71,7 +141,7 @@ func TestSplitSend(t *testing.T) {
 
 	wg := &sync.WaitGroup{}
 
-	for i := 0; i < 1; i++ {
+	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

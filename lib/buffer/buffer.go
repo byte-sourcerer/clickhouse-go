@@ -117,7 +117,7 @@ func (b *Buffer) TryInit(
 }
 
 func (b *Buffer) compressBuffer(start int, compression compress.Method) error {
-	if compression != compress.None && len(b.buffer.Buf) > 0 {
+	if compression != compress.None && len(b.buffer.Buf)-start > 0 {
 		compressed, err := doCompress(b.compressor, compression, b.buffer.Buf[start:])
 		if err != nil {
 			return err
