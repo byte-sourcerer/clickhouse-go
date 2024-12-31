@@ -365,7 +365,15 @@ func GetConnection(testSet string, settings clickhouse.Settings, tlsConfig *tls.
 	if err != nil {
 		return nil, err
 	}
-	return getConnection(env, env.Database, settings, tlsConfig, compression)
+	return getConnection(env, env.Database, settings, tlsConfig, compression, 0)
+}
+
+func GetConnectionWithMaxCompressionBuffer(testSet string, settings clickhouse.Settings, tlsConfig *tls.Config, compression *clickhouse.Compression, maxCompressionBuffer int) (driver.Conn, error) {
+	env, err := GetTestEnvironment(testSet)
+	if err != nil {
+		return nil, err
+	}
+	return getConnection(env, env.Database, settings, tlsConfig, compression, maxCompressionBuffer)
 }
 
 func GetConnectionWithOptions(options *clickhouse.Options) (driver.Conn, error) {
@@ -388,7 +396,7 @@ func GetConnectionWithOptions(options *clickhouse.Options) (driver.Conn, error) 
 	return clickhouse.Open(options)
 }
 
-func getConnection(env ClickHouseTestEnvironment, database string, settings clickhouse.Settings, tlsConfig *tls.Config, compression *clickhouse.Compression) (driver.Conn, error) {
+func getConnection(env ClickHouseTestEnvironment, database string, settings clickhouse.Settings, tlsConfig *tls.Config, compression *clickhouse.Compression, maxCompressionBuffer int) (driver.Conn, error) {
 	useSSL, err := strconv.ParseBool(GetEnv("CLICKHOUSE_USE_SSL", "false"))
 	if err != nil {
 		panic(err)
@@ -428,9 +436,10 @@ func getConnection(env ClickHouseTestEnvironment, database string, settings clic
 			Username: env.Username,
 			Password: env.Password,
 		},
-		TLS:         tlsConfig,
-		Compression: compression,
-		DialTimeout: time.Duration(timeout) * time.Second,
+		TLS:                  tlsConfig,
+		Compression:          compression,
+		DialTimeout:          time.Duration(timeout) * time.Second,
+		MaxCompressionBuffer: maxCompressionBuffer,
 	})
 	return conn, err
 }
@@ -440,7 +449,7 @@ func CreateDatabase(testSet string) error {
 	if err != nil {
 		return err
 	}
-	conn, err := getConnection(env, "default", nil, nil, nil)
+	conn, err := getConnection(env, "default", nil, nil, nil, 0)
 	if err != nil {
 		return err
 	}

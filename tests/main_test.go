@@ -39,3 +39,7 @@ func GetNativeTestEnvironment() (ClickHouseTestEnvironment, error) {
 func GetNativeConnection(settings clickhouse.Settings, tlsConfig *tls.Config, compression *clickhouse.Compression) (driver.Conn, error) {
 	return GetConnection(testSet, settings, tlsConfig, compression)
 }
+
+func GetNativeConnectionWithMaxCompressionBuffer(settings clickhouse.Settings, tlsConfig *tls.Config, compression *clickhouse.Compression, maxCompressionBuffer int) (driver.Conn, error) {
+	return GetConnectionWithMaxCompressionBuffer(testSet, settings, tlsConfig, compression, maxCompressionBuffer)
+}
