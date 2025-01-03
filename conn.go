@@ -358,15 +358,23 @@ func (c *connect) flush() error {
 		return nil
 	}
 
-	n, err := c.conn.Write(c.buffer.Buf)
+	if err := FlushBuffer(c.conn, c.buffer.Buf); err != nil {
+		return err
+	}
+
+	c.buffer.Reset()
+	return nil
+}
+
+func FlushBuffer(conn net.Conn, buffer []byte) error {
+	n, err := conn.Write(buffer)
 	if err != nil {
 		return errors.Wrap(err, "write")
 	}
 
-	if n != len(c.buffer.Buf) {
+	if n != len(buffer) {
 		return errors.New("wrote less than expected")
 	}
 
-	c.buffer.Reset()
 	return nil
 }

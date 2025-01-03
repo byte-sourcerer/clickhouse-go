@@ -27,6 +27,7 @@ import (
 
 	_ "time/tzdata"
 
+	"github.com/ClickHouse/ch-go/compress"
 	chproto "github.com/ClickHouse/ch-go/proto"
 	"github.com/ClickHouse/clickhouse-go/v2/contributors"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/column"
@@ -165,6 +166,50 @@ func (ch *clickhouse) PrepareBatch(ctx context.Context, query string, opts ...dr
 		return nil, err
 	}
 	return batch, nil
+}
+
+func (ch *clickhouse) PrepareBatchBuilderAndSender(ctx context.Context, query string, opts ...driver.PrepareBatchOption) (driver.BatchBuilder, driver.Sender, error) {
+	conn, err := ch.acquire(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	block, _, query, err := conn.buildBlock(ctx, query, ch.release)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	builder := &BatchBuilder{
+		block:                block,
+		query:                query,
+		revision:             conn.revision,
+		maxCompressionBuffer: conn.maxCompressionBuffer,
+		compression:          compress.Method(conn.compression),
+		debugf:               conn.debugf,
+	}
+
+	sender := ch.buildSender(ctx, conn, query)
+
+	return builder, sender, nil
+}
+
+func (ch *clickhouse) buildSender(ctx context.Context, conn *connect, query string) driver.Sender {
+	options := queryOptions(ctx)
+
+	onceSender := &onceSender{
+		conn:        conn,
+		connRelease: ch.release,
+		onProcess:   options.onProcess(),
+		debugf:      conn.debugf,
+	}
+
+	sender := &sender{
+		sender: onceSender,
+		conn:   ch,
+		query:  query,
+	}
+
+	return sender
 }
 
 func getPrepareBatchOptions(opts ...driver.PrepareBatchOption) driver.PrepareBatchOptions {

@@ -22,6 +22,7 @@ import (
 	"reflect"
 	"time"
 
+	bf "github.com/ClickHouse/clickhouse-go/v2/lib/buffer"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/column"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/proto"
 )
@@ -61,6 +62,9 @@ type (
 		Ping(context.Context) error
 		Stats() Stats
 		Close() error
+
+		// new API to decouple building batch & sending batch
+		PrepareBatchBuilderAndSender(ctx context.Context, query string, opts ...PrepareBatchOption) (BatchBuilder, Sender, error)
 	}
 	Row interface {
 		Err() error
@@ -97,5 +101,15 @@ type (
 		Nullable() bool
 		ScanType() reflect.Type
 		DatabaseTypeName() string
+	}
+
+	// new API to decouple building batch & sending batch
+	BatchBuilder interface {
+		Append(v ...any) error
+		Build(destination *bf.Buffer) (*bf.Buffer, error)
+	}
+	Sender interface {
+		Send(ctx context.Context, block *bf.Buffer) error
+		Abort() error
 	}
 )
